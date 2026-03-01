@@ -48,7 +48,5 @@ describe('Тестирование SingleComponent (Vue 2)', () => {
     // 4. ПРОВЕРКА: Лезем в "внутренности" через wrapper.vm
     expect(wrapper.vm.page.ready).toBe(true)
     expect(wrapper.vm.entries.data).toHaveLength(1)
-    
-    console.log('Тест Vue 2 прошел, но потребовал много настроек')
   })
 })
