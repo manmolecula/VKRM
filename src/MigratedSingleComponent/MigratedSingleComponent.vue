@@ -114,7 +114,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 
-// Импорт UI-компонентов (полный список)
+// Импорт UI-компонентов
 import Card from '@/components/ui/Card';
 import PageLoading from '@/components/ui/PageLoading';
 import InfoState from '@/components/ui/InfoState';
@@ -128,13 +128,11 @@ import FormGroup from '@/components/ui/FormGroup';
 import Table from '@/components/ui/Table';
 import { TextTag } from '@/components/ui/Typography';
 
-// Импорт нашей логики (Composable)
-import { MigratedSingleComponent } from './composables/MigratedSingleComponent';
-// Импорт Enum
+// ИЗМЕНЕНО: Импорт и вызов новой функции
+import { useMigratedSingleComponentLogic } from '@MigratedSingleComponent/composables/MigratedSingleComponent';
 import { StatusType } from '@/enums/StatusType';
 
 // 1. Инициализируем composable
-// Получаем все необходимые реактивные переменные и методы из функции
 const {
     isLoading,
     error,
@@ -146,17 +144,15 @@ const {
     handleSearch,
     handleChangePage,
     formatDate
-} = MigratedSingleComponent();
+} = useMigratedSingleComponentLogic();
 
 // 2. Локальное состояние формы
-// Используем ref, так как в <script setup> нет объекта data()
 const searchForm = ref({
     query: null,
     group: null,
 });
 
-// 3. Статические данные
-// Колонки таблицы не являются реактивными данными, это конфигурация
+// 3. Статические данные (колонки таблицы)
 const columns = [
     { key: 'id', title: 'ID' },
     { key: 'name', title: 'ФИО' },
@@ -164,10 +160,8 @@ const columns = [
     { key: 'status', title: 'Статус' },
 ];
 
-// 4. Методы-обертки (Wrapper methods)
-// Связываем события шаблона с логикой composable
+// 4. Методы-обертки
 const onSearchClick = () => {
-    // Передаем текущее состояние формы в функцию поиска
     handleSearch({
         query: searchForm.value.query,
         group: searchForm.value.group
@@ -175,7 +169,6 @@ const onSearchClick = () => {
 };
 
 // 5. Lifecycle Hooks
-// Если нужно выполнить поиск при загрузке (как в старой версии mounted)
 onMounted(() => {
     handleSearch({ query: null, group: null }); 
 });

@@ -1,9 +1,10 @@
-// вся логика работы с данными (API, состояние, фильтры)
+// Вся логика работы с данными (API, состояние, фильтры)
 import { ref, shallowRef, computed } from 'vue';
 import { getLogEntries } from '@/api/activity-log';
 import format from 'date-fns/format';
 
-export function MigratedSingleComponent() {
+// ИЗМЕНЕНО: Название функции
+export function useMigratedSingleComponentLogic() {
     // Состояние UI
     const isLoading = ref(false);
     const error = ref(null);
@@ -79,7 +80,7 @@ export function MigratedSingleComponent() {
         fetchEntries();
     };
 
-    // Утилита форматирования (может быть вынесена в utils, но допустимо и здесь)
+    // Утилита форматирования
     const formatDate = (date) => {
         return format(new Date(date), 'yyyy-MM-dd HH:mm:ss');
     };

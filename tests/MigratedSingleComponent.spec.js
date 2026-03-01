@@ -1,10 +1,9 @@
-// tests/MigratedSingleComponent.spec.js
 import { describe, it, expect, vi } from 'vitest'
 
-// Путь изменился: теперь заходим в src
-import { MigratedSingleComponent } from '../src/MigratedSingleComponent/composables/MigratedSingleComponent.js'
+// Используем @. Путь: @ (=src) -> MigratedSingleComponent -> composables -> файл
+import { useMigratedSingleComponentLogic } from '@/MigratedSingleComponent/composables/useMigratedSingleComponentLogic.js'
 
-// Мокаем API (путь должен совпадать с тем, что в composable)
+// Мокаем API
 vi.mock('@/api/activity-log', () => ({
   getLogEntries: vi.fn(() => Promise.resolve({
     items: [
@@ -15,18 +14,15 @@ vi.mock('@/api/activity-log', () => ({
   }))
 }))
 
-describe('Тестирование MigratedSingleComponent Composable', () => {
+describe('Тестирование useMigratedSingleComponentLogic', () => {
   it('Функция handleSearch должна обновлять entries', async () => {
-    // 1. Вызываем функцию
-    const { entries, isLoading, handleSearch } = MigratedSingleComponent()
+    // ИЗМЕНЕНО: Вызов новой функции
+    const { entries, isLoading, handleSearch } = useMigratedSingleComponentLogic()
 
-    // 2. Проверяем начальное состояние
     expect(entries.value).toHaveLength(0)
 
-    // 3. Вызываем поиск
     await handleSearch({ query: 'тест', group: null })
 
-    // 4. Проверяем результат (данные из мока)
     expect(isLoading.value).toBe(false)
     expect(entries.value).toHaveLength(1)
     expect(entries.value[0].name).toBe('Тестовая Запись')
