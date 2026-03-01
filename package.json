@@ -1,0 +1,14 @@
+{
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.4",
+    "@vue/test-utils": "^2.4.6",
+    "jsdom": "^28.1.0",
+    "vitest": "^4.0.18"
+  },
+  "scripts": {
+    "test": "vitest"
+  },
+  "dependencies": {
+    "date-fns": "^4.1.0"
+  }
+}
