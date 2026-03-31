@@ -3,7 +3,6 @@ import { ref, shallowRef, computed } from 'vue';
 import { getLogEntries } from '@/api/activity-log';
 import format from 'date-fns/format';
 
-// ИЗМЕНЕНО: Название функции
 export function useMigratedSingleComponentLogic() {
     // Состояние UI
     const isLoading = ref(false);
