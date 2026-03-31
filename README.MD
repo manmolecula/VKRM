@@ -18,7 +18,7 @@
 * `src/MultiComponent.vue` — Исходная реализация (Vue 2). Характеризуется жесткой связностью с хранилищем Vuex и зависимостью от глобального объекта `window`.
 * `src/MigratedMultiComponent/` — Рефакторинг (Vue 3).
   * `MigratedMultiComponent.vue` — Компонент, зависящий только от передаваемых данных.
-  * `composables/useMultiComponentLogic.js` — Бизнес-логика контроля доступа и фильтрации, полностью независимая от фреймворка.
+  * `composables/useMigratedMultiComponentLogic.js` — Бизнес-логика контроля доступа и фильтрации, полностью независимая от фреймворка.
 
 * `tests/` — Набор сравнительных модульных тестов.
 
