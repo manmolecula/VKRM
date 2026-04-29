@@ -5,7 +5,7 @@
  * Метрики из README:
  * 1. DCR (Dependency Coupling Ratio) - коэффициент связанности зависимостей в тестах
  * 2. TI (Testability Index) - индекс тестируемости
- * 3. SoCS (Separation of Concerns Score) - уровень разделения ответственности
+ * 3. CR (Code Reduction) - показатель сокращения объема кода компонента
  */
 
 const fs = require('fs');
@@ -83,14 +83,50 @@ class CodeAnalyzer {
     static countBusinessLogicLines(componentContent, composableContent = null, isVue2 = false) {
         if (!componentContent) return 0;
         if (isVue2) {
-            let logic = '';
-            const methods = componentContent.match(/methods\s*:\s*\{([\s\S]*?)\}/);
-            const computed = componentContent.match(/computed\s*:\s*\{([\s\S]*?)\}/);
-            const watch = componentContent.match(/watch\s*:\s*\{([\s\S]*?)\}/);
-            if (methods) logic += methods[1];
-            if (computed) logic += computed[1];
-            if (watch) logic += watch[1];
-            return this.countLOC(logic);
+            // Извлекаем весь блок script
+            const scriptMatch = componentContent.match(/<script>([\s\S]*?)<\/script>/);
+            if (!scriptMatch) return 0;
+            const scriptContent = scriptMatch[1];
+
+            // Находим начало и конец export default
+            const exportStart = scriptContent.indexOf('export default');
+            if (exportStart === -1) return 0;
+
+            const afterExport = scriptContent.substring(exportStart);
+
+            // Считаем LOC всего блока export default (включая data, methods, computed, watch)
+            // Находим все строки между export default и последующим };
+            let braceCount = 0;
+            let foundFirstBrace = false;
+            let logicLines = [];
+
+            for (const line of afterExport.split('\n')) {
+                const trimmed = line.trim();
+                if (!trimmed || trimmed.startsWith('//')) continue;
+
+                // Подсчитываем скобки для определения границ export default
+                for (const char of line) {
+                    if (char === '{') {
+                        braceCount++;
+                        foundFirstBrace = true;
+                    } else if (char === '}') {
+                        braceCount--;
+                    }
+                }
+
+                // Пропускаем строки с импортами и export default
+                if (trimmed.startsWith('import') || trimmed.startsWith('export')) continue;
+
+                // Добавляем строку в логику, если мы внутри export default
+                if (foundFirstBrace && braceCount > 0) {
+                    logicLines.push(line);
+                }
+
+                // Если вышли из export default (braceCount стал 0 после того как был > 0)
+                if (foundFirstBrace && braceCount === 0) break;
+            }
+
+            return logicLines.length;
         } else {
             return composableContent ? this.countLOC(composableContent) : 0;
         }
@@ -127,8 +163,8 @@ class CodeAnalyzer {
         return denom === 0 ? 0 : businessLogicLines / denom;
     }
 
-    static calculateSoCS(totalLogic, logicInComponent, logicInComposable) {
-        return totalLogic === 0 ? 0 : (logicInComposable / totalLogic) * 100;
+    static calculateCR(vue2ComponentLOC, vue3ComponentLOC) {
+        return vue2ComponentLOC === 0 ? 0 : ((vue2ComponentLOC - vue3ComponentLOC) / vue2ComponentLOC) * 100;
     }
 }
 
@@ -140,22 +176,24 @@ class MetricsCalculator {
         const dcr = CodeAnalyzer.calculateDCR(testContent);
         const ti = CodeAnalyzer.calculateTI(bl, tl, il);
 
-        let lic = 0, loc = 0;
+        let componentLOC = 0, composableLOC = 0;
         if (isVue2) {
-            lic = bl; loc = 0;
+            componentLOC = CodeAnalyzer.countLOC(componentContent);
+            composableLOC = 0;
         } else {
-            lic = Math.max(0, CodeAnalyzer.countLOC(componentContent) - 20);
-            loc = bl;
+            componentLOC = CodeAnalyzer.countLOC(componentContent);
+            composableLOC = composableContent ? CodeAnalyzer.countLOC(composableContent) : 0;
         }
-        const socs = CodeAnalyzer.calculateSoCS(lic + loc, lic, loc);
+        const totalLOC = componentLOC + composableLOC;
 
         return {
-            dcr, ti: parseFloat(ti.toFixed(2)), socs: parseFloat(socs.toFixed(1)),
+            dcr, ti: parseFloat(ti.toFixed(2)), totalLOC,
             businessLogicLines: bl, testLines: tl, infrastructureLines: il,
             uiStubs: CodeAnalyzer.countUIStubs(testContent),
             vuexModules: CodeAnalyzer.countVuexModules(testContent),
             globalObjects: CodeAnalyzer.countGlobalObjects(testContent),
-            mockFunctions: CodeAnalyzer.countMockFunctions(testContent)
+            mockFunctions: CodeAnalyzer.countMockFunctions(testContent),
+            componentLOC, composableLOC
         };
     }
 }
@@ -220,31 +258,26 @@ function collectMetrics() {
     console.log('\n' + '='.repeat(80));
     console.log(`Вывод: TI улучшился в ${tiSI}–${tiMI} раз`);
 
-    console.log('\n\n📋 МЕТРИКА 3: SoCS (Separation of Concerns Score)\n');
-    console.log('Формула: SoCS = LogicInComposable / TotalLogic × 100%');
+    console.log('\n\n📉 МЕТРИКА 3: CR (Code Reduction) - сокращение объема кода компонента\n');
+    console.log('Формула: CR = (Vue2LOC - Vue3LOC) / Vue2LOC × 100%');
+    console.log('Показывает, насколько сократился общий объем кода после миграции на Composition API');
     console.log('-'.repeat(80));
-    console.log('Компонент                  | Всего | В компоненте | В composable | SoCS%');
+    console.log('Компонент                  | Vue2 LOC | Vue3 LOC | CR%');
     console.log('-'.repeat(80));
 
-    const v2sT = metrics.vue2.single.businessLogicLines;
-    const v3sT = metrics.vue3.single.businessLogicLines + Math.max(0, CodeAnalyzer.countLOC(files.vue3Single) - 20);
-    const v2mT = metrics.vue2.multi.businessLogicLines;
-    const v3mT = metrics.vue3.multi.businessLogicLines + Math.max(0, CodeAnalyzer.countLOC(files.vue3Multi) - 20);
+    const singleCR = CodeAnalyzer.calculateCR(metrics.vue2.single.totalLOC, metrics.vue3.single.totalLOC);
+    const multiCR = CodeAnalyzer.calculateCR(metrics.vue2.multi.totalLOC, metrics.vue3.multi.totalLOC);
 
-    console.log(`SingleComponent (Vue 2)      | ${String(v2sT).padStart(5)} | ${String(v2sT).padStart(6)} | ${String(0).padStart(8)} | ${metrics.vue2.single.socs}`);
-    console.log(`MigratedSingleComponent (V3) | ${String(v3sT.toFixed(0)).padStart(5)} | ${String(Math.max(0, CodeAnalyzer.countLOC(files.vue3Single) - 20)).padStart(6)} | ${String(metrics.vue3.single.businessLogicLines).padStart(8)} | ${metrics.vue3.single.socs}`);
-    console.log(`MultiComponent (Vue 2)       | ${String(v2mT).padStart(5)} | ${String(v2mT).padStart(6)} | ${String(0).padStart(8)} | ${metrics.vue2.multi.socs}`);
-    console.log(`MigratedMultiComponent (V3)  | ${String(v3mT.toFixed(0)).padStart(5)} | ${String(Math.max(0, CodeAnalyzer.countLOC(files.vue3Multi) - 20)).padStart(6)} | ${String(metrics.vue3.multi.businessLogicLines).padStart(8)} | ${metrics.vue3.multi.socs}`);
+    console.log(`SingleComponent (Vue 2)      | ${String(metrics.vue2.single.totalLOC).padStart(8)} | ${String(metrics.vue3.single.totalLOC).padStart(8)} | ${singleCR.toFixed(1)}`);
+    console.log(`MultiComponent (Vue 2)       | ${String(metrics.vue2.multi.totalLOC).padStart(8)} | ${String(metrics.vue3.multi.totalLOC).padStart(8)} | ${multiCR.toFixed(1)}`);
 
-    const socsSI = metrics.vue3.single.socs - metrics.vue2.single.socs;
-    const socsMI = metrics.vue3.multi.socs - metrics.vue2.multi.socs;
     console.log('\n' + '='.repeat(80));
-    console.log(`Вывод: SoCS улучшился на ${socsSI}–${socsMI} п.п.`);
+    console.log(`Вывод: код сократился на ${multiCR.toFixed(1)}% для MultiComponent (для SingleComponent объем незначительно вырос на ${Math.abs(singleCR).toFixed(1)}%)`);
 
     console.log('\n' + '='.repeat(80));
     console.log('✅ Сбор метрик завершен!\n');
 
-    return { metrics, improvements: { dcr: { single: dcrSI, multi: dcrMI }, ti: { single: tiSI, multi: tiMI }, socs: { single: socsSI, multi: socsMI } } };
+    return { metrics, improvements: { dcr: { single: dcrSI, multi: dcrMI }, ti: { single: tiSI, multi: tiMI }, cr: { single: parseFloat(singleCR.toFixed(1)), multi: parseFloat(multiCR.toFixed(1)) } } };
 }
 
 if (require.main === module) collectMetrics();
