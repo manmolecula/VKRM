@@ -4,8 +4,17 @@
  *
  * Метрики из README:
  * 1. DCR (Dependency Coupling Ratio) - коэффициент связанности зависимостей в тестах
+ *    Показывает, сколько сторонних зависимостей (моки, стабы, глобальные объекты)
+ *    требуется для тестирования компонента. Чем меньше DCR, тем лучше.
+ *
  * 2. TI (Testability Index) - индекс тестируемости
- * 3. CR (Code Reduction) - показатель сокращения объема кода компонента
+ *    Показывает соотношение полезной бизнес-логики к общему объёму тестового кода.
+ *    Формула: TI = Бизнес-логика / (Строки тестов + Инфраструктура)
+ *    Чем выше TI, тем эффективнее тесты (больше проверки логики, меньше настройки).
+ *
+ * 3. CR (Code Reduction) - показатель сокращения объема кода
+ *    Показывает, насколько сократилась бизнес-логика после миграции на Composition API.
+ *    Положительное значение означает сокращение кода, отрицательное — увеличение.
  */
 
 const fs = require('fs');
@@ -42,27 +51,107 @@ class CodeAnalyzer {
 
     static countUIStubs(testContent) {
         if (!testContent) return 0;
-        const m = testContent.match(/['"]?[A-Z][a-zA-Z]+['"]?\s*:\s*(?:true|false|\{\})/g);
-        return m ? m.length : 0;
+        // Подсчитываем количество стабов UI-компонентов в тестах
+        // Ищем только в контексте stubs: { ... } или const STUBS/REQUIRED_STUBS = { ... }
+        // Паттерн ищет компоненты вида ComponentName: true/false/{}
+
+        let count = 0;
+
+        // Вариант 1: Ищем в константе STUBS = { ... } или REQUIRED_STUBS = { ... }
+        const stubsConstMatch = testContent.match(/(?:const|let|var)\s+(?:REQUIRED_)?STUBS\s*=\s*\{([\s\S]*?)\}/);
+        if (stubsConstMatch) {
+            const stubsContent = stubsConstMatch[1];
+            const keys = stubsContent.match(/(?:^|,)\s*['\"]?([A-Z][a-zA-Z]*)['\"]?\s*:\s*(?:true|false|\{\})/g);
+            if (keys) {
+                count += keys.length;
+            }
+        }
+
+        // Вариант 2: Ищем в inline stubs: { ... } (если есть напрямую в mount/stubMount)
+        // Но исключаем те, что уже посчитаны в STUBS/REQUIRED_STUBS
+        const inlineStubsMatches = testContent.match(/stubs\s*:\s*\{([\s\S]*?)\}/g);
+        if (inlineStubsMatches) {
+            for (const match of inlineStubsMatches) {
+                // Проверяем, не является ли это ссылкой на STUBS (например, stubs: STUBS или stubs: REQUIRED_STUBS)
+                if (match.includes('STUBS')) continue;
+
+                const innerContent = match.match(/\{([\s\S]*?)\}/);
+                if (innerContent) {
+                    const keys = innerContent[1].match(/(?:^|,)\s*['\"]?([A-Z][a-zA-Z]*)['\"]?\s*:\s*(?:true|false|\{\})/g);
+                    if (keys) {
+                        count += keys.length;
+                    }
+                }
+            }
+        }
+
+        return count;
     }
 
     static countVuexModules(testContent) {
         if (!testContent) return 0;
-        const m = testContent.match(/createStore|vuex|plugins\s*:\s*\[/gi);
-        return m ? m.length : 0;
+        // Считаем количество уникальных подключений Vuex store в тестах
+        // Ищем вызовы createStore() в контексте плагинов или создания мокового стора
+        // Исключаем комментарии и импорты
+
+        let count = 0;
+        const lines = testContent.split('\n');
+
+        for (const line of lines) {
+            const trimmed = line.trim();
+            // Пропускаем комментарии
+            if (trimmed.startsWith('//') || trimmed.startsWith('*')) continue;
+
+            // Пропускаем строки импорта (они начинаются с import)
+            if (trimmed.startsWith('import')) continue;
+
+            // Считаем только реальные вызовы createStore() для создания стора
+            // Это могут быть строки типа: createStore({...}) или return createStore({...})
+            if (trimmed.includes('createStore(')) {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     static countGlobalObjects(testContent) {
         if (!testContent) return 0;
         let count = 0;
+
+        // Vue 2: Считаем моки глобальных свойств в блоках mocks: { ... }
+        // Ищем все блоки mocks и считаем в них свойства вида $something:
+        const mocksMatches = testContent.match(/mocks\s*:\s*\{([\s\S]*?)\}/g);
+        if (mocksMatches) {
+            for (const match of mocksMatches) {
+                const innerMatch = match.match(/\{([\s\S]*?)\}/);
+                if (innerMatch) {
+                    const mocksContent = innerMatch[1];
+                    // Считаем свойства вида $alert:, $t:, $style: и т.д.
+                    const keys = mocksContent.match(/\$[a-zA-Z_][\w\$]*\s*:/g);
+                    if (keys) {
+                        count += keys.length;
+                    }
+                }
+            }
+        }
+
+        // Vue 2: Также считаем моки из констант REQUIRED_MOCKS = { ... } или MOCKS = { ... }
+        const mocksConstMatch = testContent.match(/(?:const|let|var)\s+(?:REQUIRED_)?MOCKS?\s*=\s*\{([\s\S]*?)\}/);
+        if (mocksConstMatch) {
+            const mocksContent = mocksConstMatch[1];
+            const keys = mocksContent.match(/\$[a-zA-Z_][\w\$]*\s*:/g);
+            if (keys) {
+                count += keys.length;
+            }
+        }
+
+        // Проверяем наличие global.window или присваивания window (для Vue 3 тестов)
         if (testContent.includes('global.window') || testContent.match(/window\s*=/)) {
             const wm = testContent.match(/window\.\w+/g);
             count += wm ? wm.length : 1;
         }
-        const mm = testContent.match(/\$\w+:/g);
-        if (mm) count += mm.length;
-        const dm = testContent.match(/\$[a-zA-Z]+\s*:/g);
-        if (dm) count += dm.length;
+
         return count;
     }
 
@@ -128,7 +217,40 @@ class CodeAnalyzer {
 
             return logicLines.length;
         } else {
-            return composableContent ? this.countLOC(composableContent) : 0;
+            // Для Vue 3 считаем бизнес-логику из composable И из <script setup> компонента
+            let totalLogicLines = 0;
+
+            // Считаем строки из composable
+            if (composableContent) {
+                totalLogicLines += this.countLOC(composableContent);
+            }
+
+            // Считаем строки из <script setup> компонента (вся логика кроме чистых импортов UI компонентов)
+            const scriptSetupMatch = componentContent.match(/<script setup>([\s\S]*?)<\/script>/);
+            if (scriptSetupMatch) {
+                const scriptSetupContent = scriptSetupMatch[1];
+                const lines = scriptSetupContent.split('\n');
+
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    // Пропускаем пустые строки и комментарии
+                    if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('*')) continue;
+
+                    // Пропускаем только чистые импорты UI компонентов (не бизнес-логику)
+                    // Импорты composable, хуков и данных считаем как бизнес-логику
+                    if (trimmed.startsWith('import')) {
+                        // Не считаем импорты UI компонентов (начинаются с '@/components' или относительные пути к компонентам)
+                        if (trimmed.includes('@/components/') ||
+                            trimmed.match(/import\s+\w+\s+from\s+['"]\.\/[^'']*\.vue['"]/)) {
+                            continue;
+                        }
+                    }
+
+                    totalLogicLines++;
+                }
+            }
+
+            return totalLogicLines;
         }
     }
 
@@ -150,9 +272,15 @@ class CodeAnalyzer {
         let count = 0;
         for (const line of testContent.split('\n')) {
             const t = line.trim();
-            if (t.match(/['"]?[A-Z][a-zA-Z]+['"]?\s*:/)) count++;
+            // Инфраструктура: стабы UI-компонентов (строки с заглушками компонентов)
+            if (t.match(/['"]?[A-Z][a-zA-Z]+['"]?\s*:\s*(?:true|false|\{\})/)) count++;
+            // Инфраструктура: подключение Vuex хранилища
             if (t.includes('createStore') || t.includes('vuex')) count++;
-            if (t.includes('$t') || t.includes('$style') || t.includes('window.')) count++;
+            // Инфраструктура: моки глобальных свойств Vue ($t - локализация, $style)
+            if (t.includes('$t:') || t.includes('$style:')) count++;
+            // Инфраструктура: моки глобального объекта window
+            if (t.includes('window.') && !t.includes('//')) count++;
+            // Инфраструктура: вызовы функций монтирования компонента
             if (t.includes('mount(') || t.includes('shallowMount(')) count++;
         }
         return count;
@@ -228,8 +356,10 @@ function collectMetrics() {
         }
     };
 
-    console.log('\n📊 МЕТРИКА 1: DCR (Dependency Coupling Ratio)\n');
-    console.log('Формула: DCR = Σ(UI) + Σ(Vuex) + Σ(global) + Σ(mockFn)');
+    console.log('\n📊 МЕТРИКА 1: DCR (Dependency Coupling Ratio) - коэффициент связанности зависимостей\n');
+    console.log('Что показывает: сколько сторонних зависимостей требуется для тестирования');
+    console.log('Формула: DCR = UI-стабы + Vuex-модули + Глобальные объекты + Мок-функции');
+    console.log('Интерпретация: чем меньше DCR, тем лучше — меньше внешних зависимостей в тестах');
     console.log('-'.repeat(80));
     console.log('Компонент                  | UI   | Vuex | Global | MockFn | DCR');
     console.log('-'.repeat(80));
@@ -242,9 +372,13 @@ function collectMetrics() {
     const dcrMI = metrics.vue2.multi.dcr > 0 && metrics.vue3.multi.dcr > 0 ? (metrics.vue2.multi.dcr / metrics.vue3.multi.dcr).toFixed(0) : '-';
     console.log('\n' + '='.repeat(80));
     console.log(`Вывод: DCR снизился в ${dcrSI}–${dcrMI} раз`);
+    console.log('Это означает, что тесты на Vue 3 требуют в несколько раз меньше зависимостей');
 
-    console.log('\n\n📈 МЕТРИКА 2: TI (Testability Index)\n');
-    console.log('Формула: TI = BusinessLogic / (TestLines + Infrastructure)');
+    console.log('\n\n📈 МЕТРИКА 2: TI (Testability Index) - индекс тестируемости\n');
+    console.log('Что показывает: соотношение полезной бизнес-логики к объёму тестового кода');
+    console.log('Формула: TI = Бизнес-логика / (Строки тестов + Инфраструктура)');
+    console.log('Инфраструктура: стабы компонентов, моки Vuex, глобальных объектов, вызовы mount()');
+    console.log('Интерпретация: чем выше TI, тем эффективнее тесты (больше проверки логики, меньше настройки)');
     console.log('-'.repeat(80));
     console.log('Компонент                  | Logic | Tests | Infra | TI');
     console.log('-'.repeat(80));
@@ -257,25 +391,55 @@ function collectMetrics() {
     const tiMI = metrics.vue2.multi.ti > 0 ? (metrics.vue3.multi.ti / metrics.vue2.multi.ti).toFixed(1) : '-';
     console.log('\n' + '='.repeat(80));
     console.log(`Вывод: TI улучшился в ${tiSI}–${tiMI} раз`);
+    console.log('Это означает, что тесты на Vue 3 стали более эффективными');
 
-    console.log('\n\n📉 МЕТРИКА 3: CR (Code Reduction) - сокращение объема кода компонента\n');
-    console.log('Формула: CR = (Vue2LOC - Vue3LOC) / Vue2LOC × 100%');
-    console.log('Показывает, насколько сократился общий объем кода после миграции на Composition API');
+    console.log('\n\n📉 МЕТРИКА 3: CR (Business Code Reduction) - сокращение объема бизнес-логики\n');
+    console.log('Что показывает: насколько сократилась бизнес-логика после миграции на Composition API');
+    console.log('Формула: CR = (Vue2 логика - Vue3 логика) / Vue2 логика × 100%');
+    console.log('Сравниваются строки бизнес-логики: export default блок (Vue 2) vs composable + <script setup> (Vue 3)');
+    console.log('Интерпретация: положительное значение — код сократился, отрицательное — увеличился');
     console.log('-'.repeat(80));
-    console.log('Компонент                  | Vue2 LOC | Vue3 LOC | CR%');
+    console.log('Компонент                  | Vue2 Logic | Vue3 Logic | CR%');
     console.log('-'.repeat(80));
 
-    const singleCR = CodeAnalyzer.calculateCR(metrics.vue2.single.totalLOC, metrics.vue3.single.totalLOC);
-    const multiCR = CodeAnalyzer.calculateCR(metrics.vue2.multi.totalLOC, metrics.vue3.multi.totalLOC);
+    const singleCR = CodeAnalyzer.calculateCR(metrics.vue2.single.businessLogicLines, metrics.vue3.single.businessLogicLines);
+    const multiCR = CodeAnalyzer.calculateCR(metrics.vue2.multi.businessLogicLines, metrics.vue3.multi.businessLogicLines);
 
-    console.log(`SingleComponent (Vue 2)      | ${String(metrics.vue2.single.totalLOC).padStart(8)} | ${String(metrics.vue3.single.totalLOC).padStart(8)} | ${singleCR.toFixed(1)}`);
-    console.log(`MultiComponent (Vue 2)       | ${String(metrics.vue2.multi.totalLOC).padStart(8)} | ${String(metrics.vue3.multi.totalLOC).padStart(8)} | ${multiCR.toFixed(1)}`);
+    console.log(`SingleComponent (Vue 2)      | ${String(metrics.vue2.single.businessLogicLines).padStart(10)} | ${String(metrics.vue3.single.businessLogicLines).padStart(10)} | ${singleCR.toFixed(1)}`);
+    console.log(`MultiComponent (Vue 2)       | ${String(metrics.vue2.multi.businessLogicLines).padStart(10)} | ${String(metrics.vue3.multi.businessLogicLines).padStart(10)} | ${multiCR.toFixed(1)}`);
 
     console.log('\n' + '='.repeat(80));
-    console.log(`Вывод: код сократился на ${multiCR.toFixed(1)}% для MultiComponent (для SingleComponent объем незначительно вырос на ${Math.abs(singleCR).toFixed(1)}%)`);
+    if (multiCR > 0) {
+        console.log(`Вывод: бизнес-логика сократилась на ${multiCR.toFixed(1)}% для MultiComponent`);
+    } else {
+        console.log(`Вывод: бизнес-логика увеличилась на ${Math.abs(multiCR).toFixed(1)}% для MultiComponent`);
+    }
+    if (singleCR > 0) {
+        console.log(`Для SingleComponent объем сократился на ${singleCR.toFixed(1)}%`);
+    } else {
+        console.log(`Для SingleComponent объем увеличился на ${Math.abs(singleCR).toFixed(1)}% (из-за выделения composable)`);
+    }
+
+    console.log('\n\n📄 ДОП: Общий объем файлов (LOC) - для справки\n');
+    console.log('Показывает полный объем файлов включая template, style, импорты, комментарии');
+    console.log('Не используется для расчёта CR, так как включает инфраструктурный код');
+    console.log('-'.repeat(80));
+    console.log('Компонент                  | Vue2 Total LOC | Vue3 Total LOC');
+    console.log('-'.repeat(80));
+    console.log(`SingleComponent (Vue 2)      | ${String(metrics.vue2.single.totalLOC).padStart(14)} | ${String(metrics.vue3.single.totalLOC).padStart(14)}`);
+    console.log(`MultiComponent (Vue 2)       | ${String(metrics.vue2.multi.totalLOC).padStart(14)} | ${String(metrics.vue3.multi.totalLOC).padStart(14)}`);
 
     console.log('\n' + '='.repeat(80));
     console.log('✅ Сбор метрик завершен!\n');
+    console.log('Краткое резюме:');
+    console.log(`  • DCR: снижение в ${dcrSI}–${dcrMI} раз — тесты стали проще`);
+    console.log(`  • TI: улучшение в ${tiSI}–${tiMI} раз — тесты стали эффективнее`);
+    if (multiCR > 0) {
+        console.log(`  • CR: сокращение бизнес-логики на ${multiCR.toFixed(1)}% для сложных компонентов`);
+    } else {
+        console.log(`  • CR: увеличение бизнес-логики на ${Math.abs(multiCR).toFixed(1)}% для сложных компонентов`);
+    }
+    console.log('');
 
     return { metrics, improvements: { dcr: { single: dcrSI, multi: dcrMI }, ti: { single: tiSI, multi: tiMI }, cr: { single: parseFloat(singleCR.toFixed(1)), multi: parseFloat(multiCR.toFixed(1)) } } };
 }
