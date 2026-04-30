@@ -1,6 +1,6 @@
 /**
  * collect-metrics.js - Автоматизированный сбор метрик для магистерской работы
- * Сравнивает подходы Vue 2 (Options API) и Vue 3 (Composition API + Composables)
+ * Сравнивает подходы Vue 2 (Options API), Vue 3 (Composables) и Vue 3 (Composition API + Composables)
  *
  * Метрики из README:
  * 1. DCR (Dependency Coupling Ratio) - коэффициент связанности зависимостей в тестах
@@ -23,15 +23,23 @@ const path = require('path');
 const PATHS = {
     vue2Multi: './src/MultiComponent.vue',
     vue2Single: './src/SingleComponent.vue',
-    vue3Multi: './src/MigratedMultiComponent/MigratedMultiComponent.vue',
-    vue3Single: './src/MigratedSingleComponent/MigratedSingleComponent.vue',
-    vue3MultiComposable: './src/MigratedMultiComponent/composables/useMigratedMultiComponentLogic.js',
-    vue3SingleComposable: './src/MigratedSingleComponent/composables/useMigratedSingleComponentLogic.js',
+    // Migration Stage 1: Options API + Composable (logic extracted, but Options API preserved)
+    vue3MultiOptionsAPI: './src/MigratedMultiComponent/OptionsAPI/MigratedMultiComponent.vue',
+    vue3SingleOptionsAPI: './src/MigratedSingleComponent/OptionsAPI/MigratedSingleComponent.vue',
+    vue3MultiOptionsComposable: './src/MigratedMultiComponent/OptionsAPI/composables/useMigratedMultiComponentLogic.js',
+    vue3SingleOptionsComposable: './src/MigratedSingleComponent/OptionsAPI/composables/useMigratedSingleComponentLogic.js',
+    // Migration Stage 2: Full Composition API with <script setup>
+    vue3MultiCompositionAPI: './src/MigratedMultiComponent/CompositionAPI/MigratedMultiComponent.vue',
+    vue3SingleCompositionAPI: './src/MigratedSingleComponent/CompositionAPI/MigratedSingleComponent.vue',
+    vue3MultiCompositionComposable: './src/MigratedMultiComponent/CompositionAPI/composables/useMigratedMultiComponentLogic.js',
+    vue3SingleCompositionComposable: './src/MigratedSingleComponent/CompositionAPI/composables/useMigratedSingleComponentLogic.js',
     tests: {
         vue2Multi: './tests/MultiComponent.spec.js',
         vue2Single: './tests/SingleComponent.spec.js',
-        vue3Multi: './tests/MigratedMultiComponent.spec.js',
-        vue3Single: './tests/MigratedSingleComponent.spec.js'
+        vue3MultiOptionsAPI: './tests/MigratedMultiComponentOptionsAPI.spec.js',
+        vue3SingleOptionsAPI: './tests/MigratedSingleComponentOptionsAPI.spec.js',
+        vue3MultiCompositionAPI: './tests/MigratedMultiComponentCompositionAPI.spec.js',
+        vue3SingleCompositionAPI: './tests/MigratedSingleComponentCompositionAPI.spec.js'
     }
 };
 
@@ -333,15 +341,23 @@ function collectMetrics() {
     const files = {
         vue2Multi: CodeAnalyzer.readFile(PATHS.vue2Multi),
         vue2Single: CodeAnalyzer.readFile(PATHS.vue2Single),
-        vue3Multi: CodeAnalyzer.readFile(PATHS.vue3Multi),
-        vue3Single: CodeAnalyzer.readFile(PATHS.vue3Single),
-        vue3MultiComposable: CodeAnalyzer.readFile(PATHS.vue3MultiComposable),
-        vue3SingleComposable: CodeAnalyzer.readFile(PATHS.vue3SingleComposable),
+        // Migration Stage 1: Options API + Composable
+        vue3MultiOptionsAPI: CodeAnalyzer.readFile(PATHS.vue3MultiOptionsAPI),
+        vue3SingleOptionsAPI: CodeAnalyzer.readFile(PATHS.vue3SingleOptionsAPI),
+        vue3MultiOptionsComposable: CodeAnalyzer.readFile(PATHS.vue3MultiOptionsComposable),
+        vue3SingleOptionsComposable: CodeAnalyzer.readFile(PATHS.vue3SingleOptionsComposable),
+        // Migration Stage 2: Full Composition API
+        vue3MultiCompositionAPI: CodeAnalyzer.readFile(PATHS.vue3MultiCompositionAPI),
+        vue3SingleCompositionAPI: CodeAnalyzer.readFile(PATHS.vue3SingleCompositionAPI),
+        vue3MultiCompositionComposable: CodeAnalyzer.readFile(PATHS.vue3MultiCompositionComposable),
+        vue3SingleCompositionComposable: CodeAnalyzer.readFile(PATHS.vue3SingleCompositionComposable),
         tests: {
             vue2Multi: CodeAnalyzer.readFile(PATHS.tests.vue2Multi),
             vue2Single: CodeAnalyzer.readFile(PATHS.tests.vue2Single),
-            vue3Multi: CodeAnalyzer.readFile(PATHS.tests.vue3Multi),
-            vue3Single: CodeAnalyzer.readFile(PATHS.tests.vue3Single)
+            vue3MultiOptionsAPI: CodeAnalyzer.readFile(PATHS.tests.vue3MultiOptionsAPI),
+            vue3SingleOptionsAPI: CodeAnalyzer.readFile(PATHS.tests.vue3SingleOptionsAPI),
+            vue3MultiCompositionAPI: CodeAnalyzer.readFile(PATHS.tests.vue3MultiCompositionAPI),
+            vue3SingleCompositionAPI: CodeAnalyzer.readFile(PATHS.tests.vue3SingleCompositionAPI)
         }
     };
 
@@ -350,9 +366,13 @@ function collectMetrics() {
             multi: MetricsCalculator.calculateAllMetrics(files.vue2Multi, null, files.tests.vue2Multi, true),
             single: MetricsCalculator.calculateAllMetrics(files.vue2Single, null, files.tests.vue2Single, true)
         },
-        vue3: {
-            multi: MetricsCalculator.calculateAllMetrics(files.vue3Multi, files.vue3MultiComposable, files.tests.vue3Multi, false),
-            single: MetricsCalculator.calculateAllMetrics(files.vue3Single, files.vue3SingleComposable, files.tests.vue3Single, false)
+        vue3OptionsAPI: {
+            multi: MetricsCalculator.calculateAllMetrics(files.vue3MultiOptionsAPI, files.vue3MultiOptionsComposable, files.tests.vue3MultiOptionsAPI, false),
+            single: MetricsCalculator.calculateAllMetrics(files.vue3SingleOptionsAPI, files.vue3SingleOptionsComposable, files.tests.vue3SingleOptionsAPI, false)
+        },
+        vue3CompositionAPI: {
+            multi: MetricsCalculator.calculateAllMetrics(files.vue3MultiCompositionAPI, files.vue3MultiCompositionComposable, files.tests.vue3MultiCompositionAPI, false),
+            single: MetricsCalculator.calculateAllMetrics(files.vue3SingleCompositionAPI, files.vue3SingleCompositionComposable, files.tests.vue3SingleCompositionAPI, false)
         }
     };
 
@@ -361,18 +381,28 @@ function collectMetrics() {
     console.log('Формула: DCR = UI-стабы + Vuex-модули + Глобальные объекты + Мок-функции');
     console.log('Интерпретация: чем меньше DCR, тем лучше — меньше внешних зависимостей в тестах');
     console.log('-'.repeat(80));
-    console.log('Компонент                  | UI   | Vuex | Global | MockFn | DCR');
+    console.log('Компонент                              | UI   | Vuex | Global | MockFn | DCR');
     console.log('-'.repeat(80));
-    console.log(`SingleComponent (Vue 2)      | ${String(metrics.vue2.single.uiStubs).padStart(4)} | ${String(metrics.vue2.single.vuexModules).padStart(4)} | ${String(metrics.vue2.single.globalObjects).padStart(6)} | ${String(metrics.vue2.single.mockFunctions).padStart(6)} | ${metrics.vue2.single.dcr}`);
-    console.log(`MigratedSingleComponent (V3) | ${String(metrics.vue3.single.uiStubs).padStart(4)} | ${String(metrics.vue3.single.vuexModules).padStart(4)} | ${String(metrics.vue3.single.globalObjects).padStart(6)} | ${String(metrics.vue3.single.mockFunctions).padStart(6)} | ${metrics.vue3.single.dcr}`);
-    console.log(`MultiComponent (Vue 2)       | ${String(metrics.vue2.multi.uiStubs).padStart(4)} | ${String(metrics.vue2.multi.vuexModules).padStart(4)} | ${String(metrics.vue2.multi.globalObjects).padStart(6)} | ${String(metrics.vue2.multi.mockFunctions).padStart(6)} | ${metrics.vue2.multi.dcr}`);
-    console.log(`MigratedMultiComponent (V3)  | ${String(metrics.vue3.multi.uiStubs).padStart(4)} | ${String(metrics.vue3.multi.vuexModules).padStart(4)} | ${String(metrics.vue3.multi.globalObjects).padStart(6)} | ${String(metrics.vue3.multi.mockFunctions).padStart(6)} | ${metrics.vue3.multi.dcr}`);
+    // Vue 2 (Original)
+    console.log(`SingleComponent (Vue 2)                | ${String(metrics.vue2.single.uiStubs).padStart(4)} | ${String(metrics.vue2.single.vuexModules).padStart(4)} | ${String(metrics.vue2.single.globalObjects).padStart(6)} | ${String(metrics.vue2.single.mockFunctions).padStart(6)} | ${metrics.vue2.single.dcr}`);
+    console.log(`MultiComponent (Vue 2)                 | ${String(metrics.vue2.multi.uiStubs).padStart(4)} | ${String(metrics.vue2.multi.vuexModules).padStart(4)} | ${String(metrics.vue2.multi.globalObjects).padStart(6)} | ${String(metrics.vue2.multi.mockFunctions).padStart(6)} | ${metrics.vue2.multi.dcr}`);
+    // Migration Stage 1: Options API + Composable
+    console.log(`MigratedSingleComponent (Options+Comp) | ${String(metrics.vue3OptionsAPI.single.uiStubs).padStart(4)} | ${String(metrics.vue3OptionsAPI.single.vuexModules).padStart(4)} | ${String(metrics.vue3OptionsAPI.single.globalObjects).padStart(6)} | ${String(metrics.vue3OptionsAPI.single.mockFunctions).padStart(6)} | ${metrics.vue3OptionsAPI.single.dcr}`);
+    console.log(`MigratedMultiComponent (Options+Comp)  | ${String(metrics.vue3OptionsAPI.multi.uiStubs).padStart(4)} | ${String(metrics.vue3OptionsAPI.multi.vuexModules).padStart(4)} | ${String(metrics.vue3OptionsAPI.multi.globalObjects).padStart(6)} | ${String(metrics.vue3OptionsAPI.multi.mockFunctions).padStart(6)} | ${metrics.vue3OptionsAPI.multi.dcr}`);
+    // Migration Stage 2: Full Composition API
+    console.log(`MigratedSingleComponent (Composition)  | ${String(metrics.vue3CompositionAPI.single.uiStubs).padStart(4)} | ${String(metrics.vue3CompositionAPI.single.vuexModules).padStart(4)} | ${String(metrics.vue3CompositionAPI.single.globalObjects).padStart(6)} | ${String(metrics.vue3CompositionAPI.single.mockFunctions).padStart(6)} | ${metrics.vue3CompositionAPI.single.dcr}`);
+    console.log(`MigratedMultiComponent (Composition)   | ${String(metrics.vue3CompositionAPI.multi.uiStubs).padStart(4)} | ${String(metrics.vue3CompositionAPI.multi.vuexModules).padStart(4)} | ${String(metrics.vue3CompositionAPI.multi.globalObjects).padStart(6)} | ${String(metrics.vue3CompositionAPI.multi.mockFunctions).padStart(6)} | ${metrics.vue3CompositionAPI.multi.dcr}`);
 
-    const dcrSI = metrics.vue2.single.dcr > 0 && metrics.vue3.single.dcr > 0 ? (metrics.vue2.single.dcr / metrics.vue3.single.dcr).toFixed(0) : '-';
-    const dcrMI = metrics.vue2.multi.dcr > 0 && metrics.vue3.multi.dcr > 0 ? (metrics.vue2.multi.dcr / metrics.vue3.multi.dcr).toFixed(0) : '-';
+    const dcrSI_Options = metrics.vue2.single.dcr > 0 && metrics.vue3OptionsAPI.single.dcr > 0 ? (metrics.vue2.single.dcr / metrics.vue3OptionsAPI.single.dcr).toFixed(0) : '-';
+    const dcrMI_Options = metrics.vue2.multi.dcr > 0 && metrics.vue3OptionsAPI.multi.dcr > 0 ? (metrics.vue2.multi.dcr / metrics.vue3OptionsAPI.multi.dcr).toFixed(0) : '-';
+    const dcrSI_Composition = metrics.vue2.single.dcr > 0 && metrics.vue3CompositionAPI.single.dcr > 0 ? (metrics.vue2.single.dcr / metrics.vue3CompositionAPI.single.dcr).toFixed(0) : '-';
+    const dcrMI_Composition = metrics.vue2.multi.dcr > 0 && metrics.vue3CompositionAPI.multi.dcr > 0 ? (metrics.vue2.multi.dcr / metrics.vue3CompositionAPI.multi.dcr).toFixed(0) : '-';
+
     console.log('\n' + '='.repeat(80));
-    console.log(`Вывод: DCR снизился в ${dcrSI}–${dcrMI} раз`);
-    console.log('Это означает, что тесты на Vue 3 требуют в несколько раз меньше зависимостей');
+    console.log('Выводы по DCR:');
+    console.log(`  • После вынесения логики (Options API + Composable): снижение в ${dcrSI_Options}–${dcrMI_Options} раз`);
+    console.log(`  • После полной миграции (Composition API): снижение в ${dcrSI_Composition}–${dcrMI_Composition} раз`);
+    console.log('Это означает, что тесты требуют меньше зависимостей после миграции');
 
     console.log('\n\n📈 МЕТРИКА 2: TI (Testability Index) - индекс тестируемости\n');
     console.log('Что показывает: соотношение полезной бизнес-логики к объёму тестового кода');
@@ -380,68 +410,136 @@ function collectMetrics() {
     console.log('Инфраструктура: стабы компонентов, моки Vuex, глобальных объектов, вызовы mount()');
     console.log('Интерпретация: чем выше TI, тем эффективнее тесты (больше проверки логики, меньше настройки)');
     console.log('-'.repeat(80));
-    console.log('Компонент                  | Logic | Tests | Infra | TI');
+    console.log('Компонент                              | Logic | Tests | Infra | TI');
     console.log('-'.repeat(80));
-    console.log(`SingleComponent (Vue 2)      | ${String(metrics.vue2.single.businessLogicLines).padStart(5)} | ${String(metrics.vue2.single.testLines).padStart(5)} | ${String(metrics.vue2.single.infrastructureLines).padStart(5)} | ${metrics.vue2.single.ti}`);
-    console.log(`MigratedSingleComponent (V3) | ${String(metrics.vue3.single.businessLogicLines).padStart(5)} | ${String(metrics.vue3.single.testLines).padStart(5)} | ${String(metrics.vue3.single.infrastructureLines).padStart(5)} | ${metrics.vue3.single.ti}`);
-    console.log(`MultiComponent (Vue 2)       | ${String(metrics.vue2.multi.businessLogicLines).padStart(5)} | ${String(metrics.vue2.multi.testLines).padStart(5)} | ${String(metrics.vue2.multi.infrastructureLines).padStart(5)} | ${metrics.vue2.multi.ti}`);
-    console.log(`MigratedMultiComponent (V3)  | ${String(metrics.vue3.multi.businessLogicLines).padStart(5)} | ${String(metrics.vue3.multi.testLines).padStart(5)} | ${String(metrics.vue3.multi.infrastructureLines).padStart(5)} | ${metrics.vue3.multi.ti}`);
+    // Vue 2 (Original)
+    console.log(`SingleComponent (Vue 2)                | ${String(metrics.vue2.single.businessLogicLines).padStart(5)} | ${String(metrics.vue2.single.testLines).padStart(5)} | ${String(metrics.vue2.single.infrastructureLines).padStart(5)} | ${metrics.vue2.single.ti}`);
+    console.log(`MultiComponent (Vue 2)                 | ${String(metrics.vue2.multi.businessLogicLines).padStart(5)} | ${String(metrics.vue2.multi.testLines).padStart(5)} | ${String(metrics.vue2.multi.infrastructureLines).padStart(5)} | ${metrics.vue2.multi.ti}`);
+    // Migration Stage 1: Options API + Composable
+    console.log(`MigratedSingleComponent (Options+Comp) | ${String(metrics.vue3OptionsAPI.single.businessLogicLines).padStart(5)} | ${String(metrics.vue3OptionsAPI.single.testLines).padStart(5)} | ${String(metrics.vue3OptionsAPI.single.infrastructureLines).padStart(5)} | ${metrics.vue3OptionsAPI.single.ti}`);
+    console.log(`MigratedMultiComponent (Options+Comp)  | ${String(metrics.vue3OptionsAPI.multi.businessLogicLines).padStart(5)} | ${String(metrics.vue3OptionsAPI.multi.testLines).padStart(5)} | ${String(metrics.vue3OptionsAPI.multi.infrastructureLines).padStart(5)} | ${metrics.vue3OptionsAPI.multi.ti}`);
+    // Migration Stage 2: Full Composition API
+    console.log(`MigratedSingleComponent (Composition)  | ${String(metrics.vue3CompositionAPI.single.businessLogicLines).padStart(5)} | ${String(metrics.vue3CompositionAPI.single.testLines).padStart(5)} | ${String(metrics.vue3CompositionAPI.single.infrastructureLines).padStart(5)} | ${metrics.vue3CompositionAPI.single.ti}`);
+    console.log(`MigratedMultiComponent (Composition)   | ${String(metrics.vue3CompositionAPI.multi.businessLogicLines).padStart(5)} | ${String(metrics.vue3CompositionAPI.multi.testLines).padStart(5)} | ${String(metrics.vue3CompositionAPI.multi.infrastructureLines).padStart(5)} | ${metrics.vue3CompositionAPI.multi.ti}`);
 
-    const tiSI = metrics.vue2.single.ti > 0 ? (metrics.vue3.single.ti / metrics.vue2.single.ti).toFixed(1) : '-';
-    const tiMI = metrics.vue2.multi.ti > 0 ? (metrics.vue3.multi.ti / metrics.vue2.multi.ti).toFixed(1) : '-';
+    const tiSI_Options = metrics.vue2.single.ti > 0 ? (metrics.vue3OptionsAPI.single.ti / metrics.vue2.single.ti).toFixed(1) : '-';
+    const tiMI_Options = metrics.vue2.multi.ti > 0 ? (metrics.vue3OptionsAPI.multi.ti / metrics.vue2.multi.ti).toFixed(1) : '-';
+    const tiSI_Composition = metrics.vue2.single.ti > 0 ? (metrics.vue3CompositionAPI.single.ti / metrics.vue2.single.ti).toFixed(1) : '-';
+    const tiMI_Composition = metrics.vue2.multi.ti > 0 ? (metrics.vue3CompositionAPI.multi.ti / metrics.vue2.multi.ti).toFixed(1) : '-';
+
     console.log('\n' + '='.repeat(80));
-    console.log(`Вывод: TI улучшился в ${tiSI}–${tiMI} раз`);
-    console.log('Это означает, что тесты на Vue 3 стали более эффективными');
+    console.log('Выводы по TI:');
+    console.log(`  • После вынесения логики (Options API + Composable): улучшение в ${tiSI_Options}–${tiMI_Options} раз`);
+    console.log(`  • После полной миграции (Composition API): улучшение в ${tiSI_Composition}–${tiMI_Composition} раз`);
+    console.log('Это означает, что тесты стали более эффективными после миграции');
 
     console.log('\n\n📉 МЕТРИКА 3: CR (Business Code Reduction) - сокращение объема бизнес-логики\n');
     console.log('Что показывает: насколько сократилась бизнес-логика после миграции на Composition API');
     console.log('Формула: CR = (Vue2 логика - Vue3 логика) / Vue2 логика × 100%');
     console.log('Сравниваются строки бизнес-логики: export default блок (Vue 2) vs composable + <script setup> (Vue 3)');
     console.log('Интерпретация: положительное значение — код сократился, отрицательное — увеличился');
-    console.log('-'.repeat(80));
-    console.log('Компонент                  | Vue2 Logic | Vue3 Logic | CR%');
-    console.log('-'.repeat(80));
+    console.log('-'.repeat(110));
+    console.log('Компонент                              | Vue2 Logic | Vue3 Options+Comp | CR% (Options) | Vue3 Composition+Comp | CR% (Composition)');
+    console.log('-'.repeat(110));
 
-    const singleCR = CodeAnalyzer.calculateCR(metrics.vue2.single.businessLogicLines, metrics.vue3.single.businessLogicLines);
-    const multiCR = CodeAnalyzer.calculateCR(metrics.vue2.multi.businessLogicLines, metrics.vue3.multi.businessLogicLines);
+    // CR для Migration Stage 1: Options API + Composable
+    const singleCR_Options = CodeAnalyzer.calculateCR(metrics.vue2.single.businessLogicLines, metrics.vue3OptionsAPI.single.businessLogicLines);
+    const multiCR_Options = CodeAnalyzer.calculateCR(metrics.vue2.multi.businessLogicLines, metrics.vue3OptionsAPI.multi.businessLogicLines);
 
-    console.log(`SingleComponent (Vue 2)      | ${String(metrics.vue2.single.businessLogicLines).padStart(10)} | ${String(metrics.vue3.single.businessLogicLines).padStart(10)} | ${singleCR.toFixed(1)}`);
-    console.log(`MultiComponent (Vue 2)       | ${String(metrics.vue2.multi.businessLogicLines).padStart(10)} | ${String(metrics.vue3.multi.businessLogicLines).padStart(10)} | ${multiCR.toFixed(1)}`);
+    // CR для Migration Stage 2: Full Composition API
+    const singleCR_Composition = CodeAnalyzer.calculateCR(metrics.vue2.single.businessLogicLines, metrics.vue3CompositionAPI.single.businessLogicLines);
+    const multiCR_Composition = CodeAnalyzer.calculateCR(metrics.vue2.multi.businessLogicLines, metrics.vue3CompositionAPI.multi.businessLogicLines);
+
+    console.log(`SingleComponent                        | ${String(metrics.vue2.single.businessLogicLines).padStart(10)} | ${String(metrics.vue3OptionsAPI.single.businessLogicLines).padStart(17)} | ${String(singleCR_Options.toFixed(1)).padStart(13)} | ${String(metrics.vue3CompositionAPI.single.businessLogicLines).padStart(19)} | ${String(singleCR_Composition.toFixed(1)).padStart(16)}`);
+    console.log(`MultiComponent                         | ${String(metrics.vue2.multi.businessLogicLines).padStart(10)} | ${String(metrics.vue3OptionsAPI.multi.businessLogicLines).padStart(17)} | ${String(multiCR_Options.toFixed(1)).padStart(13)} | ${String(metrics.vue3CompositionAPI.multi.businessLogicLines).padStart(19)} | ${String(multiCR_Composition.toFixed(1)).padStart(16)}`);
 
     console.log('\n' + '='.repeat(80));
-    if (multiCR > 0) {
-        console.log(`Вывод: бизнес-логика сократилась на ${multiCR.toFixed(1)}% для MultiComponent`);
+    console.log('Выводы по CR:');
+    if (multiCR_Options > 0) {
+        console.log(`  • После вынесения логики (Options API + Composable): бизнес-логика сократилась на ${multiCR_Options.toFixed(1)}% для MultiComponent`);
     } else {
-        console.log(`Вывод: бизнес-логика увеличилась на ${Math.abs(multiCR).toFixed(1)}% для MultiComponent`);
+        console.log(`  • После вынесения логики (Options API + Composable): бизнес-логика увеличилась на ${Math.abs(multiCR_Options).toFixed(1)}% для MultiComponent`);
     }
-    if (singleCR > 0) {
-        console.log(`Для SingleComponent объем сократился на ${singleCR.toFixed(1)}%`);
+    if (multiCR_Composition > 0) {
+        console.log(`  • После полной миграции (Composition API): бизнес-логика сократилась на ${multiCR_Composition.toFixed(1)}% для MultiComponent`);
     } else {
-        console.log(`Для SingleComponent объем увеличился на ${Math.abs(singleCR).toFixed(1)}% (из-за выделения composable)`);
+        console.log(`  • После полной миграции (Composition API): бизнес-логика увеличилась на ${Math.abs(multiCR_Composition).toFixed(1)}% для MultiComponent`);
+    }
+    if (singleCR_Options > 0) {
+        console.log(`  • Для SingleComponent объем сократился на ${singleCR_Options.toFixed(1)}% (Options+Comp)`);
+    } else {
+        console.log(`  • Для SingleComponent объем увеличился на ${Math.abs(singleCR_Options).toFixed(1)}% (Options+Comp)`);
+    }
+    if (singleCR_Composition > 0) {
+        console.log(`  • Для SingleComponent объем сократился на ${singleCR_Composition.toFixed(1)}% (Composition)`);
+    } else {
+        console.log(`  • Для SingleComponent объем увеличился на ${Math.abs(singleCR_Composition).toFixed(1)}% (Composition)`);
     }
 
     console.log('\n\n📄 ДОП: Общий объем файлов (LOC) - для справки\n');
     console.log('Показывает полный объем файлов включая template, style, импорты, комментарии');
     console.log('Не используется для расчёта CR, так как включает инфраструктурный код');
-    console.log('-'.repeat(80));
-    console.log('Компонент                  | Vue2 Total LOC | Vue3 Total LOC');
-    console.log('-'.repeat(80));
-    console.log(`SingleComponent (Vue 2)      | ${String(metrics.vue2.single.totalLOC).padStart(14)} | ${String(metrics.vue3.single.totalLOC).padStart(14)}`);
-    console.log(`MultiComponent (Vue 2)       | ${String(metrics.vue2.multi.totalLOC).padStart(14)} | ${String(metrics.vue3.multi.totalLOC).padStart(14)}`);
+    console.log('-'.repeat(100));
+    console.log('Компонент                              | Vue2 Total LOC | Options+Comp Total | Composition Total | Δ Options (%) | Δ Composition (%)');
+    console.log('-'.repeat(100));
+
+    // Рассчитываем изменения в % для LOC
+    const singleLocDeltaOptions = metrics.vue2.single.totalLOC > 0
+        ? ((metrics.vue3OptionsAPI.single.totalLOC - metrics.vue2.single.totalLOC) / metrics.vue2.single.totalLOC * 100).toFixed(1)
+        : '0.0';
+    const multiLocDeltaOptions = metrics.vue2.multi.totalLOC > 0
+        ? ((metrics.vue3OptionsAPI.multi.totalLOC - metrics.vue2.multi.totalLOC) / metrics.vue2.multi.totalLOC * 100).toFixed(1)
+        : '0.0';
+    const singleLocDeltaComposition = metrics.vue2.single.totalLOC > 0
+        ? ((metrics.vue3CompositionAPI.single.totalLOC - metrics.vue2.single.totalLOC) / metrics.vue2.single.totalLOC * 100).toFixed(1)
+        : '0.0';
+    const multiLocDeltaComposition = metrics.vue2.multi.totalLOC > 0
+        ? ((metrics.vue3CompositionAPI.multi.totalLOC - metrics.vue2.multi.totalLOC) / metrics.vue2.multi.totalLOC * 100).toFixed(1)
+        : '0.0';
+
+    console.log(`SingleComponent                        | ${String(metrics.vue2.single.totalLOC).padStart(14)} | ${String(metrics.vue3OptionsAPI.single.totalLOC).padStart(18)} | ${String(metrics.vue3CompositionAPI.single.totalLOC).padStart(17)} | ${String(singleLocDeltaOptions).padStart(13)} | ${String(singleLocDeltaComposition).padStart(17)}`);
+    console.log(`MultiComponent                         | ${String(metrics.vue2.multi.totalLOC).padStart(14)} | ${String(metrics.vue3OptionsAPI.multi.totalLOC).padStart(18)} | ${String(metrics.vue3CompositionAPI.multi.totalLOC).padStart(17)} | ${String(multiLocDeltaOptions).padStart(13)} | ${String(multiLocDeltaComposition).padStart(17)}`);
+
+    console.log('\n' + '='.repeat(80));
+    console.log('Анализ изменения объема кода:');
+    console.log('Увеличение общего объема кода при миграции объясняется следующими факторами:');
+    console.log('  1. Вынесение логики в отдельные composable-файлы добавляет:');
+    console.log('     - Экспорты функций и переменных');
+    console.log('     - Дополнительную структуру для переиспользования');
+    console.log('     - Комментарии и документацию API');
+    console.log('  2. Migration overhead - временное дублирование для поддержки двух подходов');
+    console.log('  3. Более явная структура Composition API требует больше строк для импортов хуков');
+    console.log('Важно: CR метрика измеряет только бизнес-логику, а не общий объем файлов');
 
     console.log('\n' + '='.repeat(80));
     console.log('✅ Сбор метрик завершен!\n');
     console.log('Краткое резюме:');
-    console.log(`  • DCR: снижение в ${dcrSI}–${dcrMI} раз — тесты стали проще`);
-    console.log(`  • TI: улучшение в ${tiSI}–${tiMI} раз — тесты стали эффективнее`);
-    if (multiCR > 0) {
-        console.log(`  • CR: сокращение бизнес-логики на ${multiCR.toFixed(1)}% для сложных компонентов`);
+    console.log(`  • DCR: снижение в ${dcrSI_Options}–${dcrMI_Options} раз после вынесения логики, в ${dcrSI_Composition}–${dcrMI_Composition} раз после полной миграции`);
+    console.log(`  • TI: улучшение в ${tiSI_Options}–${tiMI_Options} раз после вынесения логики, в ${tiSI_Composition}–${tiMI_Composition} раз после полной миграции`);
+    if (multiCR_Composition > 0) {
+        console.log(`  • CR: сокращение бизнес-логики на ${multiCR_Composition.toFixed(1)}% для сложных компонентов (Composition API)`);
     } else {
-        console.log(`  • CR: увеличение бизнес-логики на ${Math.abs(multiCR).toFixed(1)}% для сложных компонентов`);
+        console.log(`  • CR: увеличение бизнес-логики на ${Math.abs(multiCR_Composition).toFixed(1)}% для сложных компонентов (Composition API)`);
     }
     console.log('');
 
-    return { metrics, improvements: { dcr: { single: dcrSI, multi: dcrMI }, ti: { single: tiSI, multi: tiMI }, cr: { single: parseFloat(singleCR.toFixed(1)), multi: parseFloat(multiCR.toFixed(1)) } } };
+    return {
+        metrics,
+        improvements: {
+            dcr: {
+                single: { options: dcrSI_Options, composition: dcrSI_Composition },
+                multi: { options: dcrMI_Options, composition: dcrMI_Composition }
+            },
+            ti: {
+                single: { options: tiSI_Options, composition: tiSI_Composition },
+                multi: { options: tiMI_Options, composition: tiMI_Composition }
+            },
+            cr: {
+                single: { options: parseFloat(singleCR_Options.toFixed(1)), composition: parseFloat(singleCR_Composition.toFixed(1)) },
+                multi: { options: parseFloat(multiCR_Options.toFixed(1)), composition: parseFloat(multiCR_Composition.toFixed(1)) }
+            }
+        }
+    };
 }
 
 if (require.main === module) collectMetrics();
