@@ -1,9 +1,11 @@
-<!-- (Вариант ПОСЛЕ миграции) -->
-<!-- 
-| Характеристика | Vue 2 (Options API) | Vue 3 (Composition API) |
-| **Размер файла компонента** | Весь код в одном файле (450+ строк) | Тонкий view-слой (~100 строк) |
-| **Управление состоянием** | Смешение local data, Vuex (mapState) и window | Инкапсуляция в `useMultiComponentLogic` |
-| **Тестируемость** | Нужен mount + моки Vuex + моки DOM | Тестируется чистая JS-логика фильтрации |
+<!-- (Вариант миграции: Options API + Composable) -->
+<!--
+Сравнение подходов для MultiComponent:
+| Характеристика | Vue 2 Options API | Options API + Composable | Composition API (setup) |
+| **Размер файла компонента** | ~680 строк (весь код в одном файле) | ~150 строк (тонкий view-слой) | ~140 строк (тонкий view-слой) |
+| **Управление состоянием** | Смешение local data, Vuex (mapState) и window | Инкапсуляция в composable | Инкапсуляция в composable |
+| **Тестируемость** | Нужен mount + моки Vuex + моки DOM | Тестируется чистая JS-логика | Тестируется чистая JS-логика |
+| **Стиль кода** | this.someProperty, methods, computed | export default { ... } с импортом composable | <script setup>, прямой импорт |
 -->
 
 <template>
@@ -25,7 +27,7 @@
                                 {{ authAction.label }}
                             </Button>
                         </Stack>
-                        
+
                         <!-- Кнопки действий -->
                         <Stack v-if="!authAction" vertical-align="flex-start" :gap="5">
                             <Stack direction="column" :gap="2">
@@ -46,15 +48,15 @@
                         </Stack>
                     </Stack>
                 </Column>
-                
+
                 <!-- Правая колонка с датами -->
                 <Column :width="4">
                     <Stack class="dates-panel" direction="column" :padding-size="5">
                         <EjText var="heading-3">Даты приема заявок:</EjText>
                         <Stack direction="column" :gap="3">
-                            <Stack 
-                                v-for="dateItem in submissionDates" 
-                                :key="dateItem.id" 
+                            <Stack
+                                v-for="dateItem in submissionDates"
+                                :key="dateItem.id"
                                 horizontal-align="space-between">
                                 <p>{{ dateItem.name }}</p>
                                 <p class="dates-period">
@@ -84,9 +86,9 @@
     </div>
 </template>
 
-<script setup>
-import { onMounted } from 'vue'; // ДОБАВЛЕНО для хука жизненного цикла
-import { useMultiComponentLogic } from './composables/useMultiComponentLogic';
+<script>
+// Options API стиль с использованием composable
+import { useMultiComponentLogicOptions } from './composables/useMigratedMultiComponentLogic';
 
 // Импорт UI-компонентов
 import PageLoading from '@/components/page-loading';
@@ -99,42 +101,90 @@ import ModalComponent from '@/components/modal';
 import Table2 from '@/components/table2';
 import RadioGroup from '@/components/radio-group';
 
-// 1. Инициализация контекста (Dependency Injection)
-// В реальном приложении эти данные могли бы приходить через Props или Provide/Inject
-const initialState = {
-    appellant: window.appellant || {},
-    participants: window.participants || [],
+export default {
+    name: 'MigratedMultiComponentOptionsApi',
+
+    components: {
+        PageLoading,
+        Columns,
+        Column,
+        Stack,
+        Button,
+        EjText,
+        ModalComponent,
+        Table2,
+        RadioGroup,
+    },
+
+    // Статичные данные для представления (не зависят от бизнес-логики)
+    data() {
+        return {
+            filterOptions: [
+                { label: 'Все', value: 'all' },
+                { label: 'Тип А', value: 'Тип А' },
+            ],
+            appealColumns: [
+                { code: 'examdate', field: 'examDate', label: 'Дата' },
+                { code: 'examsubject', field: 'examSubject', label: 'Предмет' },
+            ],
+            // Данные инициализации (в реальном приложении могли бы прийти через props)
+            initialState: {
+                appellant: typeof window !== 'undefined' ? window.appellant || {} : {},
+                participants: typeof window !== 'undefined' ? window.participants || [] : [],
+            },
+            // Сюда будет записана логика из composable
+            logic: null,
+        };
+    },
+
+    // Создаем экземпляр логики до монтирования
+    beforeCreate() {
+        this.logic = useMultiComponentLogicOptions(this.initialState);
+    },
+
+    // Хук жизненного цикла (аналог created/mounted)
+    mounted() {
+        this.logic.initialize();
+    },
+
+    // Вычисляемые свойства делегируются к composable
+    computed: {
+        isLoading() {
+            return this.logic.isLoading;
+        },
+        submissionDates() {
+            return this.logic.submissionDates;
+        },
+        modals() {
+            return this.logic.modals;
+        },
+        appealFilter() {
+            return this.logic.appealFilter;
+        },
+        filteredAppealRows() {
+            return this.logic.filteredAppealRows;
+        },
+        authAction() {
+            return this.logic.authAction;
+        },
+        submitRequestActions() {
+            return this.logic.submitRequestActions;
+        },
+        submitButtonColor() {
+            return this.logic.submitButtonColor;
+        },
+    },
+
+    // Методы делегируются к composable
+    methods: {
+        formatDate(date) {
+            return this.logic.formatDate(date);
+        },
+        openSubmissionModal() {
+            this.logic.openSubmissionModal();
+        },
+    },
 };
-
-// 2. Вся бизнес-логика инкапсулирована в composable
-const {
-    isLoading,
-    submissionDates,
-    modals,
-    appealFilter,
-    filteredAppealRows,
-    authAction,
-    submitRequestActions,
-    submitButtonColor,
-    formatDate,
-    openSubmissionModal,
-    initialize, // ДОБАВЛЕНО
-} = useMultiComponentLogic(initialState);
-
-// 3. Статичные данные для представления (не зависят от бизнес-логики)
-const filterOptions = [
-    { label: 'Все', value: 'all' },
-    { label: 'Тип А', value: 'Тип А' },
-];
-const appealColumns = [
-    { code: 'examdate', field: 'examDate', label: 'Дата' },
-    { code: 'examsubject', field: 'examSubject', label: 'Предмет' },
-];
-
-// 4. Жизненный цикл (замена хуков created/mounted)
-onMounted(() => {
-    initialize();
-});
 </script>
 
 <style lang="less" module>

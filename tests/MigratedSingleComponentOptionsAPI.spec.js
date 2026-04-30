@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Тестируем ТОЛЬКО composable функцию (без компонента Vue)
-import { useActivityLogLogic } from '@/MigratedSingleComponentOptionsApi/composables/useActivityLogLogic.js'
+import { useActivityLogLogic } from '../src/MigratedSingleComponent/OptionsAPI/composables/useMigratedSingleComponentLogic'
 
 // Гибкий мок API
 vi.mock('@/api/activity-log', () => ({

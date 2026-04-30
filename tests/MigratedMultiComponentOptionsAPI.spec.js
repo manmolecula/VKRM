@@ -1,4 +1,4 @@
-import { useMultiComponentLogicOptions } from '../src/MigratedMultiComponentOptionsApi/composables/useMultiComponentLogicOptions';
+import { useMultiComponentLogicOptions } from '../src/MigratedMultiComponent/OptionsAPI/composables/useMigratedMultiComponentLogic';
 import { vi, describe, it, expect } from 'vitest';
 
 // Мокаем API

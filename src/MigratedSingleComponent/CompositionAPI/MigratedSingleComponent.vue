@@ -129,7 +129,7 @@ import Table from '@/components/ui/Table';
 import { TextTag } from '@/components/ui/Typography';
 
 // ИЗМЕНЕНО: Импорт и вызов новой функции
-import { useMigratedSingleComponentLogic } from '@MigratedSingleComponent/composables/MigratedSingleComponent';
+import { useMigratedSingleComponentLogic } from './composables/useMigratedSingleComponentLogic';
 import { StatusType } from '@/enums/StatusType';
 
 // 1. Инициализируем composable

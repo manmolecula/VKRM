@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Импортируем ТОЛЬКО чистую логику. Сам Vue компонент здесь не участвует!
-import { useMigratedSingleComponentLogic } from '@/MigratedSingleComponent/composables/useMigratedSingleComponentLogic.js'
+import { useMigratedSingleComponentLogic } from '../src/MigratedSingleComponent/CompositionAPI/composables/useMigratedSingleComponentLogic'
 
 // Гибкий мок API
 vi.mock('@/api/activity-log', () => ({

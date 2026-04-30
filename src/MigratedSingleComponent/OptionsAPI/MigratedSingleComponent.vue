@@ -8,7 +8,7 @@
 Сравнение подходов:
 | Характеристика | SingleComponent (Vue 2) | MigratedSingleComponent (Vue 3 + Options) | MigratedSingleComponent (Vue 3 + Composition) |
 | **Размер файла** | Весь код в одном файле (~230 строк) | Логика вынесена (~140 строк в компоненте) | Логика вынесена (~175 строк в компоненте) |
-| **Переиспользование** | Копипаст методов | Импорт функции useActivityLogLogic | Импорт функции useMigratedSingleComponentLogic |
+| **Переиспользование** | Копипаст методов | Импорт функции useMigratedSingleComponentLogic | Импорт функции useMigratedSingleComponentLogic |
 | **Реактивность данных** | Глубокая (избыточная) | shallowRef (оптимизация) | shallowRef (оптимизация) |
 | **Читаемость** | data() разбросан, methods отдельно | Логика в composable, компонент чище | Логика в composable, setup() явный |
 | **Тестируемость** | Нужен монтаж компонента | Можно тестировать composable изолированно | Можно тестировать composable изолированно |
@@ -117,7 +117,7 @@ import { TextTag } from '@/components/ui/Typography';
 import { StatusType } from '@/enums/StatusType';
 
 // Импорт composable с бизнес-логикой
-import { useActivityLogLogic } from './composables/useActivityLogLogic';
+import { useMigratedSingleComponentLogic } from './composables/useMigratedSingleComponentLogic';
 
 export default {
     components: {
@@ -139,7 +139,7 @@ export default {
     // Это ключевое отличие от Composition API - мы должны связать reactive данные с options
     data() {
         // Инициализируем composable один раз для экземпляра компонента
-        const logic = useActivityLogLogic();
+        const logic = useMigratedSingleComponentLogic();
 
         return {
             StatusType,
