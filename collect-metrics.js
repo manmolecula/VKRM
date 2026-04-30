@@ -225,36 +225,83 @@ class CodeAnalyzer {
 
             return logicLines.length;
         } else {
-            // Для Vue 3 считаем бизнес-логику из composable И из <script setup> компонента
+            // Для Vue 3 определяем тип компонента и считаем соответствующую бизнес-логику
             let totalLogicLines = 0;
 
-            // Считаем строки из composable
-            if (composableContent) {
-                totalLogicLines += this.countLOC(composableContent);
-            }
+            // Проверяем, используется ли <script setup> (Composition API) или обычный <script> (Options API)
+            // Ищем тег <script setup> как отдельный элемент, а не упоминание в комментариях
+            const hasScriptSetup = /^<script\s+setup\s*>/m.test(componentContent);
+            const scriptOptionsMatch = componentContent.match(/<script>([\s\S]*?)<\/script>/);
 
-            // Считаем строки из <script setup> компонента (вся логика кроме чистых импортов UI компонентов)
-            const scriptSetupMatch = componentContent.match(/<script setup>([\s\S]*?)<\/script>/);
-            if (scriptSetupMatch) {
-                const scriptSetupContent = scriptSetupMatch[1];
-                const lines = scriptSetupContent.split('\n');
+            if (hasScriptSetup) {
+                // Вариант 2: Composition API - считаем логику из composable И из <script setup>
+                if (composableContent) {
+                    totalLogicLines += this.countLOC(composableContent);
+                }
 
-                for (const line of lines) {
-                    const trimmed = line.trim();
-                    // Пропускаем пустые строки и комментарии
-                    if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('*')) continue;
+                // Считаем строки из <script setup> компонента (вся логика кроме чистых импортов UI компонентов)
+                const scriptSetupMatch = componentContent.match(/<script\s+setup>([\s\S]*?)<\/script>/);
+                if (scriptSetupMatch) {
+                    const scriptSetupContent = scriptSetupMatch[1];
+                    const lines = scriptSetupContent.split('\n');
 
-                    // Пропускаем только чистые импорты UI компонентов (не бизнес-логику)
-                    // Импорты composable, хуков и данных считаем как бизнес-логику
-                    if (trimmed.startsWith('import')) {
-                        // Не считаем импорты UI компонентов (начинаются с '@/components' или относительные пути к компонентам)
-                        if (trimmed.includes('@/components/') ||
-                            trimmed.match(/import\s+\w+\s+from\s+['"]\.\/[^'']*\.vue['"]/)) {
-                            continue;
+                    for (const line of lines) {
+                        const trimmed = line.trim();
+                        // Пропускаем пустые строки и комментарии
+                        if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('*')) continue;
+
+                        // Пропускаем только чистые импорты UI компонентов (не бизнес-логику)
+                        // Импорты composable, хуков и данных считаем как бизнес-логику
+                        if (trimmed.startsWith('import')) {
+                            // Не считаем импорты UI компонентов (начинаются с '@/components' или относительные пути к компонентам)
+                            if (trimmed.includes('@/components/') ||
+                                trimmed.match(/import\s+\w+\s+from\s+['"]\.\/[^'']*\.vue['"]/)) {
+                                continue;
+                            }
                         }
+
+                        totalLogicLines++;
+                    }
+                }
+            } else if (scriptOptionsMatch && composableContent) {
+                // Вариант 1: Options API с вынесением логики в composable
+                // Считаем ТОЛЬКО composable, так как компонент на Options API не содержит бизнес-логики
+                // (он только вызывает функции из composable через деструктуризацию)
+                // Компонент содержит лишь тонкую обёртку для вызова composable
+                totalLogicLines = this.countLOC(composableContent);
+            } else if (scriptOptionsMatch) {
+                // Если есть Options API但没有 composable, считаем логику внутри компонента
+                const scriptContent = scriptOptionsMatch[1];
+                const exportStart = scriptContent.indexOf('export default');
+                if (exportStart !== -1) {
+                    const afterExport = scriptContent.substring(exportStart);
+                    let braceCount = 0;
+                    let foundFirstBrace = false;
+                    let logicLines = [];
+
+                    for (const line of afterExport.split('\n')) {
+                        const trimmed = line.trim();
+                        if (!trimmed || trimmed.startsWith('//')) continue;
+
+                        for (const char of line) {
+                            if (char === '{') {
+                                braceCount++;
+                                foundFirstBrace = true;
+                            } else if (char === '}') {
+                                braceCount--;
+                            }
+                        }
+
+                        if (trimmed.startsWith('import') || trimmed.startsWith('export')) continue;
+
+                        if (foundFirstBrace && braceCount > 0) {
+                            logicLines.push(line);
+                        }
+
+                        if (foundFirstBrace && braceCount === 0) break;
                     }
 
-                    totalLogicLines++;
+                    totalLogicLines = logicLines.length;
                 }
             }
 
